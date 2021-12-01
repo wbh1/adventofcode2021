@@ -2,4 +2,4 @@
 My solutions to AoC 2021 puzzles
 
 ## Usage 
-`python3 day1`
+`python3 main.py day1`
