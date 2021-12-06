@@ -24,9 +24,8 @@ class Day6(Puzzle):
                     # Fish at 0 reset to 6; newly spawned start at 8
                     new_fishes.update({6: value, 8: value})
                 else:
-                    k = key - 1
-                    new_fishes.update({k: value})
+                    new_fishes.update({key-1: value})
 
-            fishes = new_fishes.copy()
+            fishes = new_fishes
 
         return sum(fishes.values())
