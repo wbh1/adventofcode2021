@@ -2,80 +2,63 @@ from solutions.Puzzle import Puzzle
 import math
 
 
-# Screw trying to do it a pretty way
-VALS = {
-    "0": "0000",
-    "1": "0001",
-    "2": "0010",
-    "3": "0011",
-    "4": "0100",
-    "5": "0101",
-    "6": "0110",
-    "7": "0111",
-    "8": "1000",
-    "9": "1001",
-    "A": "1010",
-    "B": "1011",
-    "C": "1100",
-    "D": "1101",
-    "E": "1110",
-    "F": "1111",
-}
+class Packet:
+    def __init__(self, binary_string: str):
+        self.index = 0
+        self.subpackets = []
 
+        self.binstr = binary_string
 
-class Day16(Puzzle):
-    def __init__(self, filename):
-        with open(f"inputs/{filename}.txt") as f:
-            data = f.read().strip()
-        bin_string = ""
-        for c in data:
-            bin_string += VALS[c]
-        data = bin_string
-        self.versions = 0
-        # data = bin(int("C0015000016115A2E0802F182340", 16))[2:]
-        while len(data) % 4 != 0:
-            data = "0" + data
-        self.data = data
+        self.VERSION = self.read_int(3)
+        self.ID = self.read_int(3)
 
-    def part1(self) -> int:
-        self.value = self.read_packet()
-        return self.versions
+        # value of a packet is the value of its subpackets
+        self.value = self.unwrap()
 
-    def part2(self) -> int:
-        return self.value
+        self.vsum = self.VERSION
+        for spkt in self.subpackets:
+            self.vsum += spkt.vsum
 
-    def read(self, length):
-        ret = self.data[:length]
-        self.data = self.data[length:]
+    def _read(self, length):
+        if self.index + length > len(self.binstr):
+            raise Exception("you screwed up")
+        ret = self.binstr[self.index : self.index + length]
+        self.index += length
         return ret
 
-    def read_packet(self):
-        version = int(self.read(3), 2)
-        ID = int(self.read(3), 2)
+    def read_int(self, length):
+        return int(self._read(length), 2)
 
-        self.versions += version
-
-        if ID == 4:
+    def unwrap(self):
+        if self.ID == 4:
             num = ""
             while True:
-                chunk = self.read(5)
-                num += chunk[1:]
-                if chunk[0] == "0":
+                header = self.read_int(1)
+                num += self._read(4)
+                if header == 0:
                     break
             return int(num, 2)
-
-        length_type_id = int(self.read(1))
-
-        subpkt_values = []
-        if length_type_id == 0:
-            subpkt_length = int(self.read(15), 2)
-            remaining_len = len(self.data) - subpkt_length
-            while remaining_len != len(self.data):
-                subpkt_values.append(self.read_packet())
         else:
-            num_sub_pkts = int(self.read(11), 2)
-            subpkt_values = [self.read_packet() for i in range(num_sub_pkts)]
+            return self.unwrap_subpackets()
 
+    def unwrap_subpackets(self):
+        ltid = self.read_int(1)
+
+        if ltid == 0:
+            subpkt_length = self.read_int(15)
+            remaining_length = len(self.binstr[self.index :]) - subpkt_length
+            while remaining_length != len(self.binstr[self.index :]):
+                self.subpackets.append(Packet(self.binstr[self.index :]))
+                self.index += self.subpackets[-1].index
+        else:
+            num_sub_pkts = self.read_int(11)
+            for i in range(num_sub_pkts):
+                self.subpackets.append(Packet(self.binstr[self.index :]))
+                self.index += self.subpackets[-1].index
+
+        subpkt_values = [pkt.value for pkt in self.subpackets]
+        ID = self.ID
+        # if there's only one value, skip the conditions
         if len(subpkt_values) == 1:
             return subpkt_values[0]
 
@@ -92,4 +75,20 @@ class Day16(Puzzle):
         elif ID == 6:
             return 1 if subpkt_values[0] < subpkt_values[1] else 0
         elif ID == 7:
-            return 1 if subpkt_values[0] == subpkt_values[1] else 0 
+            return 1 if subpkt_values[0] == subpkt_values[1] else 0
+
+
+class Day16(Puzzle):
+    def __init__(self, filename):
+        with open(f"inputs/{filename}.txt") as f:
+            # Zero pad 🤬
+            data = "".join([bin(int(c, 16))[2:].zfill(4) for c in f.read().strip()])
+        self.versions = 0
+        self.data = data
+
+    def part1(self) -> int:
+        self.pkt = Packet(self.data)
+        return self.pkt.vsum
+
+    def part2(self) -> int:
+        return self.pkt.value
